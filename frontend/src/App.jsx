@@ -73,7 +73,7 @@ export default function App() {
           <Route path="*" element={<p className="notice">Page not found.</p>} />
         </Routes>
       </main>
-      <footer className="footer">Shopwise · built step by step</footer>
+      <footer className="footer">© Sri Kumudha Trends</footer>
     </>
   );
 }

@@ -16,7 +16,8 @@ export default function Navbar() {
     <header className="navbar">
       <div className="container navbar-inner">
         <Link to="/" className="brand">
-          Shopwise
+          <img src="/logo.png" alt="" className="brand-logo" />
+          <span className="brand-text">Sri Kumudha Trends</span>
         </Link>
         <nav className="nav-links">
           <Link to="/">Shop</Link>
