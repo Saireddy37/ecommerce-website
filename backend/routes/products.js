@@ -57,15 +57,28 @@ function parseProduct(body) {
     if (!Number.isFinite(price) || price < 0) return { error: 'Price must be a number, 0 or more' };
     if (!Number.isInteger(stock) || stock < 0) return { error: 'Stock must be a whole number, 0 or more' };
 
+    // Photos: a list of links. The first one is the main photo.
+    let images = Array.isArray(body.images) ? body.images : [];
+    images = images.map((u) => String(u || '').trim()).filter(Boolean);
+    if (images.length === 0 && body.image_url) {
+        images = [String(body.image_url).trim()].filter(Boolean); // older single-photo requests
+    }
+    if (images.length > 8) return { error: 'You can add up to 8 photos per product' };
+    if (images.some((u) => !/^(https?:\/\/|\/)/.test(u))) {
+        return { error: 'Each photo must be a web link (https://...) or start with /' };
+    }
+    if (images.length === 0) {
+        images = [`https://picsum.photos/seed/${encodeURIComponent(name)}/400`];
+    }
+
     return {
         data: {
             name,
             description: String(body.description || '').trim(),
             price,
             stock,
-            image_url:
-                String(body.image_url || '').trim() ||
-                `https://picsum.photos/seed/${encodeURIComponent(name)}/400`,
+            images,
+            image_url: images[0], // the main photo, used on the shop page and in the cart
             category: String(body.category || '').trim() || null,
         },
     };
@@ -78,9 +91,9 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
 
     try {
         const result = await pool.query(
-            `INSERT INTO products (name, description, price, stock, image_url, category)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-            [data.name, data.description, data.price, data.stock, data.image_url, data.category]
+            `INSERT INTO products (name, description, price, stock, image_url, category, images)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            [data.name, data.description, data.price, data.stock, data.image_url, data.category, data.images]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -97,9 +110,9 @@ router.put('/:id', requireAuth, requireAdmin, async (req, res) => {
     try {
         const result = await pool.query(
             `UPDATE products
-             SET name = $1, description = $2, price = $3, stock = $4, image_url = $5, category = $6
-             WHERE id = $7 RETURNING *`,
-            [data.name, data.description, data.price, data.stock, data.image_url, data.category, req.params.id]
+             SET name = $1, description = $2, price = $3, stock = $4, image_url = $5, category = $6, images = $7
+             WHERE id = $8 RETURNING *`,
+            [data.name, data.description, data.price, data.stock, data.image_url, data.category, data.images, req.params.id]
         );
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Product not found' });

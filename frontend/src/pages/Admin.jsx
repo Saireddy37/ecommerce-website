@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api, formatPrice } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { uploadImage } from '../upload.js';
 
-const EMPTY = { name: '', description: '', price: '', stock: '', image_url: '', category: '' };
+const MAX_PHOTOS = 8;
+const EMPTY = { name: '', description: '', price: '', stock: '', category: '', images: [] };
 const STATUSES = ['pending', 'paid', 'shipped', 'delivered', 'cancelled'];
 
 export default function Admin() {
@@ -38,6 +40,8 @@ function ProductsTab() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const uploading = uploadStatus !== '';
 
   function load() {
     api('/products')
@@ -62,13 +66,56 @@ function ProductsTab() {
       description: p.description || '',
       price: p.price,
       stock: p.stock,
-      image_url: p.image_url || '',
       category: p.category || '',
+      images: p.images && p.images.length ? p.images : p.image_url ? [p.image_url] : [],
     });
     setEditingId(p.id);
     setError('');
     setMessage('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Upload the chosen photos one after another and add each to the product
+  async function handlePhotos(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    setError('');
+    setMessage('');
+    const room = MAX_PHOTOS - form.images.length;
+    if (room <= 0) {
+      setError(`You can add up to ${MAX_PHOTOS} photos per product.`);
+      return;
+    }
+    const chosen = files.slice(0, room);
+    if (files.length > room) {
+      setMessage(`Only ${room} more photo(s) fit, so the rest were skipped.`);
+    }
+
+    for (let i = 0; i < chosen.length; i++) {
+      setUploadStatus(`Uploading photo ${i + 1} of ${chosen.length}...`);
+      try {
+        const url = await uploadImage(chosen[i], token);
+        setForm((f) => ({ ...f, images: [...f.images, url] }));
+      } catch (err) {
+        setError(`Photo ${i + 1} failed: ${err.message}`);
+        break;
+      }
+    }
+    setUploadStatus('');
+  }
+
+  function makeMain(index) {
+    setForm((f) => {
+      const images = [...f.images];
+      const [picked] = images.splice(index, 1);
+      return { ...f, images: [picked, ...images] };
+    });
+  }
+
+  function removePhoto(index) {
+    setForm((f) => ({ ...f, images: f.images.filter((_, i) => i !== index) }));
   }
 
   async function submit(e) {
@@ -77,7 +124,14 @@ function ProductsTab() {
     setMessage('');
     setBusy(true);
     try {
-      const body = { ...form, price: Number(form.price), stock: Number(form.stock) };
+      const body = {
+        name: form.name,
+        description: form.description,
+        category: form.category,
+        price: Number(form.price),
+        stock: Number(form.stock),
+        images: form.images,
+      };
       if (editingId) {
         await api(`/products/${editingId}`, { method: 'PUT', token, body });
         setMessage('Product updated.');
@@ -121,7 +175,7 @@ function ProductsTab() {
           </label>
           <label>
             Category
-            <input value={form.category} onChange={change('category')} placeholder="e.g. Fashion" />
+            <input value={form.category} onChange={change('category')} placeholder="e.g. Sarees" />
           </label>
           <label>
             Price (₹)
@@ -132,17 +186,46 @@ function ProductsTab() {
             <input required type="number" min="0" step="1" value={form.stock} onChange={change('stock')} />
           </label>
           <label className="wide">
-            Image URL (optional)
-            <input value={form.image_url} onChange={change('image_url')} placeholder="https://..." />
-          </label>
-          <label className="wide">
             Description
             <input value={form.description} onChange={change('description')} />
           </label>
+
+          <label className="wide">
+            Photos ({form.images.length} of {MAX_PHOTOS}). You can pick several at once from your gallery.
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotos}
+              disabled={uploading || form.images.length >= MAX_PHOTOS}
+            />
+            {uploading && <span className="muted small">{uploadStatus}</span>}
+          </label>
+
+          {form.images.length > 0 && (
+            <div className="wide photo-grid">
+              {form.images.map((url, i) => (
+                <div className="photo-item" key={url}>
+                  <img src={url} alt={`Photo ${i + 1}`} />
+                  {i === 0 && <span className="photo-main">Main</span>}
+                  <div className="photo-actions">
+                    {i !== 0 && (
+                      <button type="button" onClick={() => makeMain(i)}>
+                        Make main
+                      </button>
+                    )}
+                    <button type="button" onClick={() => removePhoto(i)}>
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="admin-actions">
-          <button className="btn btn-primary" disabled={busy}>
-            {busy ? 'Saving...' : editingId ? 'Save changes' : 'Add product'}
+          <button className="btn btn-primary" disabled={busy || uploading}>
+            {busy ? 'Saving...' : uploading ? 'Uploading photos...' : editingId ? 'Save changes' : 'Add product'}
           </button>
           {editingId && (
             <button type="button" className="btn btn-ghost" onClick={reset}>

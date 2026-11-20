@@ -8,6 +8,7 @@ const app = express();
 
 app.use(cors({ origin: process.env.FRONTEND_URL || true }));
 app.use(express.json());
+app.use('/api/uploads', require('./routes/uploads'));
 
 // Test database connection
 app.get('/test-db', async (req, res) => {
