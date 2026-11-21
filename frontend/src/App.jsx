@@ -73,7 +73,12 @@ export default function App() {
           <Route path="*" element={<p className="notice">Page not found.</p>} />
         </Routes>
       </main>
-      <footer className="footer">© Sri Kumudha Trends</footer>
+      <footer className="footer">
+        <img src="/logo.png" alt="" className="footer-logo" />
+        <p className="footer-name">Sri Kumudha Trends</p>
+        <p className="footer-tag">Sarees for every celebration</p>
+        <p className="footer-copy">© {new Date().getFullYear()} Sri Kumudha Trends</p>
+      </footer>
     </>
   );
 }
